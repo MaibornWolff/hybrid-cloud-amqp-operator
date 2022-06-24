@@ -1,0 +1,40 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: amqpqueueconsumers.hybridcloud.maibornwolff.de
+spec:
+  scope: Namespaced
+  group: hybridcloud.maibornwolff.de
+  names:
+    kind: AMQPQueueConsumer
+    plural: amqpqueueconsumers
+    singular: amqpqueueconsumer
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                queueRef:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                  required:
+                    - name
+                credentialsSecret:
+                  type: string
+              required:
+                - queueRef
+                - credentialsSecret
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+              nullable: true

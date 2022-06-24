@@ -1,0 +1,5 @@
+apiVersion: hybridcloud.maibornwolff.de/v1alpha1
+kind: AMQPBroker
+metadata:
+  name: demo
+  namespace: default

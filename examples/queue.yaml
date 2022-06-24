@@ -1,0 +1,19 @@
+apiVersion: hybridcloud.maibornwolff.de/v1alpha1
+kind: AMQPQueue
+metadata:
+  name: somequeue
+  namespace: default
+spec:
+  brokerRef:
+    name: demo
+  credentialsSecret: somequeue-credentials
+---
+apiVersion: hybridcloud.maibornwolff.de/v1alpha1
+kind: AMQPQueueConsumer
+metadata:
+  name: somequeue-consumer
+  namespace: default
+spec:
+  queueRef:
+    name: somequeue
+  credentialsSecret: somequeue-consumer-credentials

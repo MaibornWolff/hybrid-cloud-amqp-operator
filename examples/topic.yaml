@@ -1,0 +1,19 @@
+apiVersion: hybridcloud.maibornwolff.de/v1alpha1
+kind: AMQPTopic
+metadata:
+  name: sometopic
+  namespace: default
+spec:
+  brokerRef:
+    name: demo
+  credentialsSecret: sometopic-credentials
+---
+apiVersion: hybridcloud.maibornwolff.de/v1alpha1
+kind: AMQPTopicSubscription
+metadata:
+  name: sometopic-sub
+  namespace: default
+spec:
+  topicRef:
+    name: sometopic
+  credentialsSecret: sometopic-subscription-credentials
