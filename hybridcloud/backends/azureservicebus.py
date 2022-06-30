@@ -108,7 +108,7 @@ class AzureServiceBusBackend:
 
     def create_or_update_topic(self, namespace, name, spec, namespace_name):
         topic_name = _calc_topic_name(namespace, name)
-        default_message_ttl = field_from_spec("topic.defaultTTLSeconds", _backend_config("topic.parameters.default_ttl_seconds", default=60*60*24*30))
+        default_message_ttl = field_from_spec(spec, "topic.defaultTTLSeconds", _backend_config("topic.parameters.default_ttl_seconds", default=60*60*24*30))
         if default_message_ttl:
             default_message_ttl = timedelta(seconds=int(default_message_ttl))
         parameters = SBTopic(
@@ -153,7 +153,7 @@ class AzureServiceBusBackend:
 
     def create_or_update_topic_subscription(self, namespace, name, spec, topic_name, namespace_name):
         subscription_name = _calc_subscription_name(namespace, name)
-        default_message_ttl = field_from_spec("subscription.defaultTTLSeconds", _backend_config("subscription.parameters.default_ttl_seconds", default=60*60*24*30))
+        default_message_ttl = field_from_spec(spec, "subscription.defaultTTLSeconds", _backend_config("subscription.parameters.default_ttl_seconds", default=60*60*24*30))
         if default_message_ttl:
             default_message_ttl = timedelta(seconds=int(default_message_ttl))
         lock_duration = field_from_spec(spec, "subscription.lockDurationSeconds", _backend_config("subscription.parameters.lock_duration_seconds", default=60))
