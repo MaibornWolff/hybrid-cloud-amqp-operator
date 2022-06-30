@@ -3,6 +3,16 @@ entries:
   hybrid-cloud-amqp-operator:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2022-06-30T13:53:16.760841015Z"
+    description: A Helm chart for Kubernetes
+    digest: ce3c6dcf18a9f834371d662de7ff32064cb716d3a15f22a457a2174dbff7ab9c
+    name: hybrid-cloud-amqp-operator
+    type: application
+    urls:
+    - https://MaibornWolff.github.io/hybrid-cloud-amqp-operator/hybrid-cloud-amqp-operator-0.1.1.tgz
+    version: 0.1.1
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2022-06-27T06:55:29.177213624Z"
     description: A Helm chart for Kubernetes
     digest: 56336d3461650dad05b4646cbe3c933436b3ab61ad66a7626cbd52b11008cc4c
@@ -14,6 +24,16 @@ entries:
   hybrid-cloud-amqp-operator-crds:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2022-06-30T13:53:16.761221919Z"
+    description: A Helm chart for Kubernetes
+    digest: 0c715cd8b518b0aecae3d3f26fe1f2423cfde5da2f20c0243d6b360d1b5fac14
+    name: hybrid-cloud-amqp-operator-crds
+    type: application
+    urls:
+    - https://MaibornWolff.github.io/hybrid-cloud-amqp-operator/hybrid-cloud-amqp-operator-crds-0.1.1.tgz
+    version: 0.1.1
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2022-06-27T06:55:29.177556526Z"
     description: A Helm chart for Kubernetes
     digest: c652e96e7c5913d712b4b89b346264b137b58ad58b22a4bf0c4c72990be2bc99
@@ -22,4 +42,4 @@ entries:
     urls:
     - https://MaibornWolff.github.io/hybrid-cloud-amqp-operator/hybrid-cloud-amqp-operator-crds-0.1.0.tgz
     version: 0.1.0
-generated: "2022-06-27T06:55:29.176298616Z"
+generated: "2022-06-30T13:53:16.759078299Z"
