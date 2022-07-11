@@ -54,7 +54,7 @@ class AzureServiceBusBackend:
             return (False, f"calculated broker name '{namespace_name}' is longer than 50 characters")
         for char in namespace_name:
             if char not in ALLOWED_NAMESPACE_NAME_CHARACTERS:
-                return (False, f"Characeter '{char}' is not allowed in name. Allowed are: letters, digits and hyphens")
+                return (False, f"Character '{char}' is not allowed in name. Allowed are: letters, digits and hyphens")
         # Check if name is available
         if not self.broker_exists(namespace, name):
             result = self._servicebus_client.namespaces.check_name_availability(CheckNameAvailability(name=namespace_name))
@@ -97,6 +97,12 @@ class AzureServiceBusBackend:
         if not self.topic_exists(namespace, name, broker_name):
             if self.queue_exists(namespace, name, broker_name):
                 return (False, "There is already a queue with the same name")
+        topic_name = _calc_topic_name(namespace, name)
+        if len(topic_name) > 260:
+            return (False, f"calculated topic name '{topic_name}' is longer than 260 characters")
+        for char in topic_name:
+            if char not in ALLOWED_NAMESPACE_NAME_CHARACTERS:
+                return (False, f"Character '{char}' is not allowed in name. Allowed are: letters, digits and hyphens")
         return True, ""
 
     def topic_exists(self, namespace, name, broker_name):
@@ -182,6 +188,12 @@ class AzureServiceBusBackend:
             pass
 
     def topic_subscription_spec_valid(self, namespace, name, spec):
+        subscription_name = _calc_subscription_name(namespace, name)
+        if len(subscription_name) > 50:
+            return (False, f"calculated subscription name '{subscription_name}' is longer than 50 characters")
+        for char in subscription_name:
+            if char not in ALLOWED_NAMESPACE_NAME_CHARACTERS:
+                return (False, f"Character '{char}' is not allowed in name. Allowed are: letters, digits and hyphens")
         return (True, "")
 
     def _create_or_update_topic_credentials(self, token_name, topic_name, namespace_name, permissions, entity_path, reset_credentials=False):
@@ -216,6 +228,12 @@ class AzureServiceBusBackend:
         if not self.queue_exists(namespace, name, namespace_name):
             if self.topic_exists(namespace, name, namespace_name):
                 return (False, "There is already a topic with the same name")
+        queue_name = _calc_queue_name(namespace, name)
+        if len(queue_name) > 260:
+            return (False, f"calculated queue name '{queue_name}' is longer than 260 characters")
+        for char in queue_name:
+            if char not in ALLOWED_NAMESPACE_NAME_CHARACTERS:
+                return (False, f"Character '{char}' is not allowed in name. Allowed are: letters, digits and hyphens")
         return True, ""
 
     def queue_exists(self, namespace, name, namespace_name):
@@ -273,6 +291,12 @@ class AzureServiceBusBackend:
             pass
 
     def queue_consumer_spec_valid(self, namespace, name, spec):
+        consumer_name = _calc_queue_consumer_name(namespace, name)
+        if len(consumer_name) > 50:
+            return (False, f"calculated consumer name '{consumer_name}' is longer than 50 characters")
+        for char in consumer_name:
+            if char not in ALLOWED_NAMESPACE_NAME_CHARACTERS:
+                return (False, f"Character '{char}' is not allowed in name. Allowed are: letters, digits and hyphens")
         return (True, "")
 
     def create_or_update_queue_consumer_credentials(self, namespace, name, queue_name, namespace_name, reset_credentials=False):
