@@ -5,80 +5,95 @@ from hybridcloud_core.operator.reconcile_helpers import ignore_control_label_cha
 from hybridcloud_core.k8s.api import get_namespaced_custom_object, patch_namespaced_custom_object_status, create_or_update_secret, get_secret, delete_secret
 from ..util import k8s
 from ..util.constants import BACKOFF
+from ..util.metrics import PROMETHEUS_HANDLER_CALLS_TOTAL_COUNTER, PROMETHEUS_HANDLER_EXCEPTION_COUNTER, ACTIONS, initialize_prometheus_metrics
 
+_HANDLER_NAME = "queue_consumer"
+initialize_prometheus_metrics(_HANDLER_NAME)
 
 if config_get("handler_on_resume", default=False):
     @kopf.on.resume(*k8s.AMQPQueueConsumer.kopf_on(), backoff=BACKOFF)
     def queue_consumer_resume(spec, meta, labels, name, namespace, body, status, retry, diff, logger, **kwargs):
-        queue_consumer_manage(spec, meta, labels, name, namespace, body, status, retry, diff, logger, **kwargs)
+        _ACTION_NAME = ACTIONS.RESUME
+        PROMETHEUS_HANDLER_CALLS_TOTAL_COUNTER.labels(handler=_HANDLER_NAME, action=_ACTION_NAME).inc()
+
+        with (PROMETHEUS_HANDLER_EXCEPTION_COUNTER.labels(handler=_HANDLER_NAME, action=_ACTION_NAME)).count_exceptions():
+            queue_consumer_manage(spec, meta, labels, name, namespace, body, status, retry, diff, logger, **kwargs)
 
 
 @kopf.on.create(*k8s.AMQPQueueConsumer.kopf_on(), backoff=BACKOFF)
 @kopf.on.update(*k8s.AMQPQueueConsumer.kopf_on(), backoff=BACKOFF)
 def queue_consumer_manage(spec, meta, labels, name, namespace, body, status, retry, diff, logger, **kwargs):
-    if ignore_control_label_change(diff):
-        logger.debug("Only control labels removed. Nothing to do.")
-        return
+    _ACTION_NAME = ACTIONS.CREATE_OR_UPDATE
+    PROMETHEUS_HANDLER_CALLS_TOTAL_COUNTER.labels(handler=_HANDLER_NAME, action=_ACTION_NAME).inc()
 
-    # Wait for queue
-    queue_namespace = spec["queueRef"].get("namespace", namespace)
-    backend, backend_name, broker_name, queue_name, allowed_k8s_namespaces = _wait_for_queue(logger, queue_namespace, spec["queueRef"]["name"], retry)
+    with (PROMETHEUS_HANDLER_EXCEPTION_COUNTER.labels(handler=_HANDLER_NAME, action=_ACTION_NAME)).count_exceptions():
+        if ignore_control_label_change(diff):
+            logger.debug("Only control labels removed. Nothing to do.")
+            return
 
-    # Check for cross-namespace
-    if queue_namespace != namespace:
-        if not config_get("cross_namespace.allow_consume", default=False):
-            _status(name, namespace, status, "failed", "Queue and Consumer in different k8s namespaces is not allowed")
-            raise kopf.PermanentError("Queue and Consumer in different k8s namespaces is not allowed")
-        if not namespace in allowed_k8s_namespaces:
-            _status(name, namespace, status, "failed", "Your k8s namespace is not allowed to use the referenced AMQPQueue")
-            raise kopf.PermanentError(f"Your k8s namespace is not allowed to use the referenced AMQPQueue")  
+        # Wait for queue
+        queue_namespace = spec["queueRef"].get("namespace", namespace)
+        backend, backend_name, broker_name, queue_name, allowed_k8s_namespaces = _wait_for_queue(logger, queue_namespace, spec["queueRef"]["name"], retry)
 
-    # Validate spec
-    valid, reason = backend.queue_consumer_spec_valid(namespace, name, spec)
-    if not valid:
-        _status(name, namespace, status, "failed", f"Validation failed: {reason}")
-        raise kopf.PermanentError("Spec is invalid, check status for details")
+        # Check for cross-namespace
+        if queue_namespace != namespace:
+            if not config_get("cross_namespace.allow_consume", default=False):
+                _status(name, namespace, status, "failed", "Queue and Consumer in different k8s namespaces is not allowed")
+                raise kopf.PermanentError("Queue and Consumer in different k8s namespaces is not allowed")
+            if not namespace in allowed_k8s_namespaces:
+                _status(name, namespace, status, "failed", "Your k8s namespace is not allowed to use the referenced AMQPQueue")
+                raise kopf.PermanentError(f"Your k8s namespace is not allowed to use the referenced AMQPQueue")  
 
-    _status(name, namespace, status, "working", backend=backend_name, queue_name=queue_name, broker_name=broker_name)
+        # Validate spec
+        valid, reason = backend.queue_consumer_spec_valid(namespace, name, spec)
+        if not valid:
+            _status(name, namespace, status, "failed", f"Validation failed: {reason}")
+            raise kopf.PermanentError("Spec is invalid, check status for details")
+
+        _status(name, namespace, status, "working", backend=backend_name, queue_name=queue_name, broker_name=broker_name)
 
 
-    credentials_secret = get_secret(namespace, spec["credentialsSecret"])
-    reset_credentials = False
+        credentials_secret = get_secret(namespace, spec["credentialsSecret"])
+        reset_credentials = False
 
-    def action_reset_credentials():
-        nonlocal credentials_secret
-        nonlocal reset_credentials
-        credentials_secret = None
-        reset_credentials = True
-        return "Credentials reset"
-    process_action_label(labels, {
-        "reset-credentials": action_reset_credentials,
-    }, body, k8s.AMQPQueueConsumer)
+        def action_reset_credentials():
+            nonlocal credentials_secret
+            nonlocal reset_credentials
+            credentials_secret = None
+            reset_credentials = True
+            return "Credentials reset"
+        process_action_label(labels, {
+            "reset-credentials": action_reset_credentials,
+        }, body, k8s.AMQPQueueConsumer)
 
-    # Generate credentials
-    if not credentials_secret:
-        credentials = backend.create_or_update_queue_consumer_credentials(namespace, name, queue_name, broker_name, reset_credentials)
-        create_or_update_secret(namespace, spec["credentialsSecret"], credentials)
+        # Generate credentials
+        if not credentials_secret:
+            credentials = backend.create_or_update_queue_consumer_credentials(namespace, name, queue_name, broker_name, reset_credentials)
+            create_or_update_secret(namespace, spec["credentialsSecret"], credentials)
 
-    # mark success
-    _status(name, namespace, status, "finished", "QueueConsumer created", backend=backend_name, broker_name=broker_name, queue_name=queue_name)
+        # mark success
+        _status(name, namespace, status, "finished", "QueueConsumer created", backend=backend_name, broker_name=broker_name, queue_name=queue_name)
 
 
 @kopf.on.delete(*k8s.AMQPQueueConsumer.kopf_on(), backoff=BACKOFF)
 def queue_consumer_delete(spec, status, name, namespace, logger, **kwargs):
-    if status and "backend" in status:
-        backend_name = status["backend"]
-    else:
-        backend_name = config_get("backend", fail_if_missing=True)
-    backend = amqp_backend(backend_name, logger)
-    if not status or not "broker_name" in status or not "queue_name" in status:
-        logger.warn("Could not delete QueueConsumer as no namespace and queue information was stored in status")
-        return
-    broker_name = status["broker_name"]
-    queue_name = status["queue_name"]
+    _ACTION_NAME = ACTIONS.DELETE
+    PROMETHEUS_HANDLER_CALLS_TOTAL_COUNTER.labels(handler=_HANDLER_NAME, action=_ACTION_NAME).inc()
 
-    delete_secret(namespace, spec["credentialsSecret"])
-    backend.delete_queue_consumer_credentials(namespace, name, queue_name, broker_name)
+    with (PROMETHEUS_HANDLER_EXCEPTION_COUNTER.labels(handler=_HANDLER_NAME, action=_ACTION_NAME)).count_exceptions():
+        if status and "backend" in status:
+            backend_name = status["backend"]
+        else:
+            backend_name = config_get("backend", fail_if_missing=True)
+        backend = amqp_backend(backend_name, logger)
+        if not status or not "broker_name" in status or not "queue_name" in status:
+            logger.warn("Could not delete QueueConsumer as no namespace and queue information was stored in status")
+            return
+        broker_name = status["broker_name"]
+        queue_name = status["queue_name"]
+
+        delete_secret(namespace, spec["credentialsSecret"])
+        backend.delete_queue_consumer_credentials(namespace, name, queue_name, broker_name)
 
 
 def _status(name, namespace, status_obj, status, reason=None, backend=None, broker_name=None, queue_name=None):

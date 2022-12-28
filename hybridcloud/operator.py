@@ -2,9 +2,11 @@ import asyncio
 import logging
 import random
 import kopf
+import prometheus_client as prometheus
 # Import the handlers so kopf sees them
 from .handlers import broker, topic, topic_subscription, queue, queue_consumer
 
+prometheus.start_http_server(8081)
 
 logger = logging.getLogger('azure')
 logger.setLevel(logging.WARNING)
