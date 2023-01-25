@@ -5,48 +5,83 @@ from hybridcloud_core.operator.reconcile_helpers import ignore_control_label_cha
 from hybridcloud_core.k8s.api import patch_namespaced_custom_object_status
 from ..util import k8s
 from ..util.constants import BACKOFF
+from ..util.metrics import (
+    PROMETHEUS_HANDLER_CALLS_TOTAL_COUNTER, 
+    PROMETHEUS_HANDLER_EXCEPTION_COUNTER, 
+    PROMETHEUS_RESOURCES_CREATED_TOTAL_GAUGE,
+    ACTIONS,
+    extract_count_from_kopf_index, 
+    initialize_prometheus_handler_metrics, 
+    initialize_prometheus_resource_gauge
+)
+
+_HANDLER_NAME = "broker"
+_RESOURCE_TYPE = "AMQPBroker"
+initialize_prometheus_handler_metrics(_HANDLER_NAME)
+initialize_prometheus_resource_gauge(_RESOURCE_TYPE)
+
+
+@kopf.on.create(*k8s.AMQPBroker.kopf_on(), backoff=BACKOFF)
+@kopf.on.update(*k8s.AMQPBroker.kopf_on(), backoff=BACKOFF)
+@kopf.on.delete(*k8s.AMQPBroker.kopf_on(), backoff=BACKOFF)
+def set_resource_count_metric(resource_index: kopf.Index, **_):
+    count = extract_count_from_kopf_index(resource_index, _RESOURCE_TYPE)
+    PROMETHEUS_RESOURCES_CREATED_TOTAL_GAUGE.labels(type=_RESOURCE_TYPE).set(count)
+
 
 
 if config_get("handler_on_resume", default=False):
     @kopf.on.resume(*k8s.AMQPBroker.kopf_on(), backoff=BACKOFF)
     def broker_resume(spec, meta, labels, name, namespace, body, status, retry, diff, logger, **kwargs):
-        broker_manage(spec, meta, labels, name, namespace, body, status, retry, diff, logger, **kwargs)
+        _ACTION_NAME = ACTIONS.RESUME
+        PROMETHEUS_HANDLER_CALLS_TOTAL_COUNTER.labels(handler=_HANDLER_NAME, action=_ACTION_NAME).inc()
+
+        with (PROMETHEUS_HANDLER_EXCEPTION_COUNTER.labels(handler=_HANDLER_NAME, action=_ACTION_NAME)).count_exceptions():
+            broker_manage(spec, meta, labels, name, namespace, body, status, retry, diff, logger, **kwargs)
 
 
 @kopf.on.create(*k8s.AMQPBroker.kopf_on(), backoff=BACKOFF)
 @kopf.on.update(*k8s.AMQPBroker.kopf_on(), backoff=BACKOFF)
 def broker_manage(spec, meta, labels, name, namespace, body, status, retry, diff, logger, **kwargs):
-    if ignore_control_label_change(diff):
-        logger.debug("Only control labels removed. Nothing to do.")
-        return
+    _ACTION_NAME = ACTIONS.CREATE_OR_UPDATE
+    PROMETHEUS_HANDLER_CALLS_TOTAL_COUNTER.labels(handler=_HANDLER_NAME, action=_ACTION_NAME).inc()
 
-    if status and "backend" in status:
-        backend_name = status["backend"]
-    else:
-        backend_name = spec.get("backend", config_get("backend", fail_if_missing=True))
-    backend = amqp_backend(backend_name, logger)
+    with (PROMETHEUS_HANDLER_EXCEPTION_COUNTER.labels(handler=_HANDLER_NAME, action=_ACTION_NAME)).count_exceptions():
+        if ignore_control_label_change(diff):
+            logger.debug("Only control labels removed. Nothing to do.")
+            return
 
-    valid, reason = backend.broker_spec_valid(namespace, name, spec)
-    if not valid:
-        _status(name, namespace, status, "failed", f"Validation failed: {reason}")
-        raise kopf.PermanentError("Spec is invalid, check status for details")
+        if status and "backend" in status:
+            backend_name = status["backend"]
+        else:
+            backend_name = spec.get("backend", config_get("backend", fail_if_missing=True))
+        backend = amqp_backend(backend_name, logger)
 
-    # Create broker
-    broker_name = backend.create_or_update_broker(namespace, name, spec)
+        valid, reason = backend.broker_spec_valid(namespace, name, spec)
+        if not valid:
+            _status(name, namespace, status, "failed", f"Validation failed: {reason}")
+            raise kopf.PermanentError("Spec is invalid, check status for details")
 
-    # mark success
-    _status(name, namespace, status, "finished", "Broker created", backend=backend_name, broker_name=broker_name)
+        # Create broker
+        broker_name = backend.create_or_update_broker(namespace, name, spec)
+
+        # mark success
+        _status(name, namespace, status, "finished", "Broker created", backend=backend_name, broker_name=broker_name)
 
 
 @kopf.on.delete(*k8s.AMQPBroker.kopf_on(), backoff=BACKOFF)
 def broker_delete(spec, status, name, namespace, logger, **kwargs):
-    if status and "backend" in status:
-        backend_name = status["backend"]
-    else:
-        backend_name = config_get("backend", fail_if_missing=True)
-    backend = amqp_backend(backend_name, logger)
-    if backend.broker_exists(namespace, name):
-        backend.delete_broker(namespace, name)
+    _ACTION_NAME = ACTIONS.DELETE
+    PROMETHEUS_HANDLER_CALLS_TOTAL_COUNTER.labels(handler=_HANDLER_NAME, action=_ACTION_NAME).inc()
+
+    with (PROMETHEUS_HANDLER_EXCEPTION_COUNTER.labels(handler=_HANDLER_NAME, action=_ACTION_NAME)).count_exceptions():
+        if status and "backend" in status:
+            backend_name = status["backend"]
+        else:
+            backend_name = config_get("backend", fail_if_missing=True)
+        backend = amqp_backend(backend_name, logger)
+        if backend.broker_exists(namespace, name):
+            backend.delete_broker(namespace, name)
 
 
 def _status(name, namespace, status_obj, status, reason=None, backend=None, endpoint=None, broker_name=None):

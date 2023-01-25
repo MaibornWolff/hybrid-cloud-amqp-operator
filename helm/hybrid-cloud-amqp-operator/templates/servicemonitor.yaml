@@ -1,0 +1,35 @@
+---
+{{- if .Values.prometheus.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    name: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ include "operator.fullname" . }}-metrics
+  endpoints:
+  - port: {{ .Values.prometheus.portName }}
+    interval: {{ .Values.prometheus.scrapeInterval }}
+    path: {{ .Values.prometheus.path | default "/" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "operator.fullname" . }}-metrics
+  labels:
+    app.kubernetes.io/instance: {{ include "operator.fullname" . }}-metrics
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.prometheus.port }}
+      targetPort: {{ .Values.prometheus.port }}
+      protocol: TCP
+      name: {{ .Values.prometheus.portName }}
+  selector:
+    {{- include "operator.selectorLabels" . | nindent 4 }}
+
+{{- end }}

@@ -77,3 +77,9 @@ affinity: {}
 
 strategy:
   type: Recreate
+
+prometheus:
+  enabled: true
+  portName: metrics
+  port: 8081
+  scrapeInterval: 30s
