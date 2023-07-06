@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import kopf
 from .routing import amqp_backend
 from hybridcloud_core.configuration import config_get
@@ -101,6 +102,7 @@ def _status(name, namespace, status_obj, status, reason=None, backend=None, brok
         status_obj["queue_name"] = queue_name
     status_obj["deployment"] = {
         "status": status,
-        "reason": reason
+        "reason": reason,
+        "latest-update": datetime.now(tz=timezone.utc).isoformat()
     }
     patch_namespaced_custom_object_status(k8s.AMQPQueue, namespace, name, status_obj)
