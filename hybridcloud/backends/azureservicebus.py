@@ -84,6 +84,9 @@ class AzureServiceBusBackend:
             namespace = self._servicebus_client.namespaces.begin_create_or_update(self._resource_group, namespace_name, parameters).result()
 
         return namespace_name
+    
+    def create_or_update_broker_credentials(self, topic_name, namespace_name, reset_credentials=False):
+        return self._create_or_update_broker_credentials(f"{topic_name}-owner", topic_name, namespace_name, [AccessRights.MANAGE, AccessRights.LISTEN, AccessRights.SEND], topic_name, reset_credentials)
 
     def delete_broker(self, namespace, name):
         namespace_name = _calc_namespace_name(namespace, name)
@@ -92,6 +95,39 @@ class AzureServiceBusBackend:
             self.create_or_update_broker(namespace, name, None, {"marked-for-deletion": "yes"})
         else:
             self._servicebus_client.namespaces.begin_delete(self._resource_group, namespace_name).result()
+
+    def _create_or_update_broker_credentials(self, token_name, queue_name, namespace_name, permissions, reset_credentials=False):
+        # Create or update authorization rule
+        parameters = SBAuthorizationRule(
+            rights=permissions
+        )
+        self._servicebus_client.broker.create_or_update_authorization_rule(self._resource_group, namespace_name, queue_name, token_name, parameters)
+        
+        # Reset keys if requested
+        if reset_credentials:
+            parameters = RegenerateAccessKeyParameters(key_type="PrimaryKey")
+            self._servicebus_client.broker.regenerate_keys(self._resource_group, namespace_name, queue_name, token_name, parameters=parameters)
+        
+        # Generate SAS token        
+        keys = self._servicebus_client.broker.list_keys(self._resource_group, namespace_name, queue_name, token_name)
+        
+        # Return token + needed info
+        return {
+            "auth_method": "user-password",
+            "hostname": f"{namespace_name}.servicebus.windows.net",
+            "port": "5671",
+            "protocol": "amqps",
+            "user": token_name,
+            "password": keys.primary_key,
+            "token": "",
+            "entity": queue_name
+        }
+    
+    def delete_broker_credentials(self, subscription_name, topic_name, namespace_name):
+        try:
+            self._servicebus_client.broker.delete_authorization_rule(self._resource_group, namespace_name, topic_name, subscription_name)
+        except ResourceNotFoundError:
+            pass
 
     def topic_spec_valid(self, namespace, name, spec, broker_name):
         if not self.topic_exists(namespace, name, broker_name):
