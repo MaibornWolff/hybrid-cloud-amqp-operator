@@ -1,5 +1,5 @@
-azure-identity==1.15.0
-azure-mgmt-resource==23.0.1
+azure-identity==1.16.1
+azure-mgmt-resource==23.1.1
 azure-mgmt-servicebus==8.2.0
-requests==2.31.0
+requests==2.32.3
 git+https://github.com/MaibornWolff/hybrid-cloud-operator-library.git@19a8275
