@@ -6,7 +6,7 @@ import urllib
 import string
 import time
 from azure.core.exceptions import ResourceNotFoundError
-from azure.mgmt.servicebus.v2021_06_01_preview.models import CheckNameAvailability, SBNamespace, SBSku, SBTopic, SBAuthorizationRule, RegenerateAccessKeyParameters, SBSubscription, AccessRights, SBQueue
+from azure.mgmt.servicebus.v2022_10_01_preview.models import CheckNameAvailability, SBNamespace, SBSku, SBTopic, SBAuthorizationRule, RegenerateAccessKeyParameters, SBSubscription, AccessRights, SBQueue
 from hybridcloud_core.configuration import get_one_of
 from hybridcloud_core.operator.reconcile_helpers import field_from_spec
 from ..util.azure import servicebus_client
